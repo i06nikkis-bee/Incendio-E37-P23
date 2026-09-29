@@ -10,6 +10,18 @@
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 #include "config.h"
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306>
+
+const uint8_t ANCHO_PANTALLA = 128;
+const uint8_t ALTO_PANTALLA = 64;
+const int8_t OLED_RESET = -1;
+const uint8_t DIRECCION_OLED = 0x3C;
+
+Adafruit_SSD1306 display(ANCHO_PANTALLA, ALTO_PANTALLA, &Wire, OLED_RESET); 
+unsigned long muestraPantalla = 0; 
+const unit muestreoPantalla = 1000; 
 
 WiFiClient red;
 PubSubClient mqtt(red);
@@ -22,7 +34,7 @@ uint32_t tPub = 0;
 uint32_t esperaReconexion = 2000;
 const uint32_t ESPERA_MAXIMA_MQTT = 30000;
 const uint32_t REINTENTO_WIFI_MS = 15000;
-onst uint32_t PERIODO_PUB_MS = 10000;
+const uint32_t PERIODO_PUB_MS = 10000;
 
 DHTesp dhtSensor;
 const byte DHT_PIN = 15;
@@ -239,6 +251,36 @@ void cambioEstado(ESTADO actual){
 
 bool lectura = true;
 
+void actualizarPantalla(bool, fuegoActivo) {
+ 	display.clerDisplay(); 
+	display.setTextSize(1);
+	display.setTextColor(SSD1306_WHITE); 
+
+	display.setCursor(0, 0); 
+	display.printf("Modo: %s", cambiarNombre(estadoActual)); 
+	display.drawLine(0, 10, 128, 10, SSD1306_WHITE); 
+
+	display.setCursor(0, 15); 
+	display.printf("Temp: %.1f C", temp);  
+	display.setCursor(0, 25); 
+	display.printf("Hum: %.1f %%"; humedad); 
+
+	display.setCursor(0, 35); 
+	if (resistenciaMQ < 0) {
+		display.print("Gas: invalido"); 
+	} else {
+		display.printf("Gas Rs: %.2f kOhm", resistenciaMQ);
+	}
+	display.setCursor(0, 45); 
+	display.printf("Llama: %s"; fuegoActivo? "FUEGO!!" : "OK");
+
+	display.setCursor(0, 55); 
+	display.printf("Wifi:%s MQTT:%s",
+					(WiFi.status() == WL_CONNECTED)? "OK" : "NO", 
+					mqtt.connectedd() ? "OK" : "NO");
+	display.displsy(); 
+}
+
 void mantenerWiFi() {
   if (WiFi.status() == WL_CONNECTED) return;
   
@@ -329,6 +371,18 @@ void setup(){
 	ledcSetup(canalBuzzer, 2000, 8);
 	ledcAttachPin(buzzer, canalBuzzer);
 
+	Wire.begim(21,22); 
+	if (!display.begin(SSD1306_SWITCHCAPVCC, DIRECCION_OLED)) {
+		Serial.println(" Error al iniciar"); 
+	} else {
+		display.claerDisplay(); 
+		display.setTextSize(1); 
+		display.setTextColor(SSD1306_WHITE); 
+		display.setCursor(15, 25); 
+		display.prinln("Iniciando Nodo..")
+		display.display();
+
+	}
 	//llamada por primera vez para obtener las primeras lecturas
 }
 
@@ -373,6 +427,11 @@ void loop(){
 	if (time - muestraIR > muestreoIR){
 		muestraIR = millis();
 		ac = nivelIR();
+	}
+
+	if (time - muestraPantalla > muestreoPantalla) {
+		muestreo = millis(); 
+		actualizarPantalla(ac == 0); 
 	}
 
     static uint32_t t_pub = 0;
